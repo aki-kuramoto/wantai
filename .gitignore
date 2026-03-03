@@ -1,0 +1,21 @@
+# Binaries and test output
+*.exe
+*.test
+*.out
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go workspace
+go.work
+go.work.sum
+
+# Internal project management (not part of the public library)
+project-status.md
+
+# OS metadata
+.DS_Store
+Thumbs.db
