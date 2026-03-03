@@ -102,7 +102,7 @@ fmt.Println(gdf.String())   // => "YYYY-MM-DD'T'HH:mm:ss.SSS"
 | `SSS` | Milliseconds (3 digits) | `123` |
 | `cc` | Centiseconds (2 digits) | `12` |
 | `ffffff` | Microseconds (6 digits) | `123456` |
-| `nnnnnn` | Nanoseconds (9 digits) | `123456789` |
+| `nnnnnnnnn` | Nanoseconds (9 digits) | `123456789` |
 | `A` | AM/PM | `PM` |
 | `a` | am/pm | `pm` |
 | `ZZ` | Numeric timezone offset | `+0900` |

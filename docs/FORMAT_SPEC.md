@@ -85,7 +85,7 @@ All four tokens produce the same Go layout (`04`):
 | `SSS` | `000` | Milliseconds | `123` |
 | `cc` | `00` | Centiseconds (2 digits) | `12` |
 | `ffffff` | `000000` | Microseconds | `123456` |
-| `nnnnnn` | `000000000` | Nanoseconds | `123456789` |
+| `nnnnnnnnn` | `000000000` | Nanoseconds | `123456789` |
 
 Shorter variants (`f`, `ff`, ..., `fffff` and `n` through `nnnnn`) are **not** defined and pass through unchanged.
 

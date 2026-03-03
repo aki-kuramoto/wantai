@@ -105,7 +105,7 @@ func convertDateFormatToGoLayout(format string) (string, error) {
 		// Fractional second (longer tokens must come before shorter ones)
 		"SSS", "000",
 		"ffffff", "000000",
-		"nnnnnn", "000000000",
+		"nnnnnnnnn", "000000000",
 		"cc", "00",
 		// Second
 		"ss", "05",

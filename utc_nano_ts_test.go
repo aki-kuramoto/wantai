@@ -236,7 +236,7 @@ func TestRenderWithFormat_RealPatterns(t *testing.T) {
 		// Fractional seconds (uses testTimestampNano for sub-second values)
 		{"HH:mm:ss.SSS", "12:34:56.123"},
 		{"HH:mm:ss.ffffff", "12:34:56.123456"},
-		{"HH:mm:ss.nnnnnn", "12:34:56.123456789"},
+		{"HH:mm:ss.nnnnnnnnn", "12:34:56.123456789"},
 		// Year and time only
 		{"YYYY", "2024"},
 		{"HH:mm", "12:34"},

@@ -48,7 +48,7 @@ func TestGoLayout_BasicTokens(t *testing.T) {
 		// Fractional second
 		{"SSS (ms)", "SSS", "000"},
 		{"ffffff (us)", "ffffff", "000000"},
-		{"nnnnnn (ns)", "nnnnnn", "000000000"},
+		{"nnnnnnnnn (ns)", "nnnnnnnnn", "000000000"},
 		// AM/PM
 		{"A", "A", "PM"},
 		{"a", "a", "pm"},
@@ -189,8 +189,8 @@ func TestGoLayout_TokenRepetition(t *testing.T) {
 		{"ffff", "ffff"},          // 4 chars: no token defined → pass-through
 		{"fffff", "fffff"},        // 5 chars: pass-through
 		{"fffffff", "000000f"},    // ffffff→000000, f→pass-through
-		{"nnnnn", "nnnnn"},        // 5 chars: pass-through
-		{"nnnnnnn", "000000000n"}, // nnnnnn→000000000, n→pass-through
+		{"nnnnnnnn", "nnnnnnnn"},        // 5 chars: pass-through
+		{"nnnnnnnnnn", "000000000n"}, // nnnnnnnnn→000000000, n→pass-through
 	}
 
 	for _, tt := range tests {
@@ -225,7 +225,7 @@ func TestGoLayout_TokenInteraction(t *testing.T) {
 		// Second + fractional
 		{"ss.SSS", "05.000"},
 		{"ss.ffffff", "05.000000"},
-		{"ss.nnnnnn", "05.000000000"},
+		{"ss.nnnnnnnnn", "05.000000000"},
 		// AM/PM combinations
 		{"hh A", "03 PM"},
 		{"HH A", "15 PM"}, // syntactically odd but converts correctly
@@ -307,7 +307,7 @@ func TestGoLayout_PassThrough(t *testing.T) {
 		{"d", "d"},         // only ddd / dddd are defined
 		{"f", "f"},         // only ffffff is defined
 		{"fffff", "fffff"}, // 5 chars: pass-through
-		{"n", "n"},         // only nnnnnn is defined
+		{"n", "n"},         // only nnnnnnnnn is defined
 		{"nnnnn", "nnnnn"}, // 5 chars: pass-through
 		// Other uppercase letters
 		{"T", "T"},
