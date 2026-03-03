@@ -12,7 +12,7 @@
 **wantai** is a small Go library that provides:
 
 - **`UtcNanoTs`** — A type that wraps a UTC nanosecond Unix timestamp (`int64`) and renders it as a human-readable string in any timezone.
-- **`GeneralDateFormat`** — Converts common date format strings (e.g. `YYYY-MM-DD HH:mm:ss`) to Go's reference-time layout, with support for literal escapes and backslash escaping.
+- **`GeneralDateFormat`** — Pre-parses common date format strings (e.g. `YYYY-MM-DD HH:mm:ss`) into an efficient component list, then renders directly without using Go's `time.Format`.
 
 ---
 
@@ -49,14 +49,10 @@ func main() {
     fmt.Println(ts)
     // => "2024-01-15T12:34:56Z"
 
-    // Render with a Go layout string
-    fmt.Println(ts.RenderWithGoLayout("America/New_York", "2006-01-02 15:04:05"))
-    // => "2024-01-15 07:34:56"
-
     // Render with a GeneralDateFormat
-    gdf, _ := wantai.NewGeneralDateFormat("YYYY/MM/DD HH:mm:ss")
+    gdf, _ := wantai.NewGeneralDateFormat("YYYY/MM/DD HH:mm:ss.SSSfffnnn")
     fmt.Println(ts.RenderWithFormat("UTC", *gdf))
-    // => "2024/01/15 12:34:56"
+    // => "2024/01/15 12:34:56.123456789"
 
     // Convert back to time.Time (always UTC)
     t := ts.ToTime()
@@ -69,13 +65,16 @@ func main() {
 ### GeneralDateFormat
 
 ```go
-gdf, err := wantai.NewGeneralDateFormat("YYYY-MM-DD'T'HH:mm:ss.SSS")
+gdf, err := wantai.NewGeneralDateFormat("YYYY-MM-DD'T'HH:mm:ss.SSSfffnnn")
 if err != nil {
     log.Fatal(err)
 }
 
-fmt.Println(gdf.GoLayout()) // => "2006-01-02T15:04:05.000"
-fmt.Println(gdf.String())   // => "YYYY-MM-DD'T'HH:mm:ss.SSS"
+fmt.Println(gdf.String()) // => "YYYY-MM-DD'T'HH:mm:ss.SSSfffnnn"
+
+ts := wantai.FromTime(time.Now())
+fmt.Println(ts.RenderWithFormat("Asia/Tokyo", *gdf))
+// => "2024-01-15T21:34:56.123456789"
 ```
 
 #### Supported Tokens
@@ -88,8 +87,8 @@ fmt.Println(gdf.String())   // => "YYYY-MM-DD'T'HH:mm:ss.SSS"
 | `MMM` | Short month name | `Jan` |
 | `MM` | Zero-padded month | `01` |
 | `M` | Month | `1` |
-| `DD` | Zero-padded day | `05` |
-| `D` | Day | `5` |
+| `DD` | Zero-padded day | `15` |
+| `D` | Day | `15` |
 | `dddd` | Full weekday | `Monday` |
 | `ddd` | Short weekday | `Mon` |
 | `HH` | 24-hour | `14` |
@@ -99,22 +98,32 @@ fmt.Println(gdf.String())   // => "YYYY-MM-DD'T'HH:mm:ss.SSS"
 | `m` / `i` / `I` | Minute | `5` |
 | `ss` / `SS` | Zero-padded second | `09` |
 | `s` / `S` | Second | `9` |
-| `SSS` | Milliseconds (3 digits) | `123` |
-| `cc` | Centiseconds (2 digits) | `12` |
-| `ffffff` | Microseconds (6 digits) | `123456` |
-| `nnnnnnnnn` | Nanoseconds (9 digits) | `123456789` |
+| `cc` | Centiseconds — digits 1–2 | `12` |
+| `SSS` | Milliseconds — digits 1–3 | `123` |
+| `fff` | Microsecond sub-part — digits 4–6 | `456` |
+| `nnn` | Nanosecond sub-part — digits 7–9 | `789` |
+| `ffffff` | Full microseconds (= `SSS`+`fff`) | `123456` |
+| `nnnnnnnnn` | Full nanoseconds (= `SSS`+`fff`+`nnn`) | `123456789` |
 | `A` | AM/PM | `PM` |
 | `a` | am/pm | `pm` |
 | `ZZ` | Numeric timezone offset | `+0900` |
 | `Z` | Timezone abbreviation | `JST` |
+
+The fractional-second tokens `SSS`, `fff`, `nnn` are **composable**:
+
+```
+"HH:mm:ss.SSSfffnnn"  => "12:34:56.123456789"   (full nanoseconds)
+"HH:mm:ss.SSSfff"     => "12:34:56.123456"       (full microseconds)
+"HH:mm:ss.SSS'***'nnn"=> "12:34:56.123***789"    (hide the micro part)
+```
 
 #### Literal escape — single quotes
 
 Wrap text in single quotes to prevent token substitution:
 
 ```
-"YYYY-MM-DD'T'HH:mm:ss"   =>  "2006-01-02T15:04:05"
-"DD MMM YYYY 'at' HH:mm"  =>  "02 Jan 2006 at 15:04"
+"YYYY-MM-DD'T'HH:mm:ss"   =>  "2024-01-15T12:34:56"
+"DD MMM YYYY 'at' HH:mm"  =>  "15 Jan 2024 at 12:34"
 ```
 
 #### Literal escape — backslash
@@ -122,8 +131,8 @@ Wrap text in single quotes to prevent token substitution:
 Prepend `\` to output any character literally:
 
 ```
-"YYYY\\MM"    =>  "2006\01"    (\\ = literal backslash)
-"YYYY\'MM"    =>  "2006'01"    (\' = literal single quote)
+"YYYY\\MM"    =>  "2024\01"    (\\ = literal backslash)
+"YYYY\'MM"    =>  "2024'01"    (\' = literal single quote)
 "'it\'s'"     =>  "it's"       (\' inside a quote block)
 ```
 
@@ -131,9 +140,18 @@ For full format specification and edge-case behavior, see [docs/FORMAT_SPEC.md](
 
 ---
 
+## Timezone handling
+
+`RenderWithFormat` uses different strategies depending on the timezone:
+
+- **Fixed-offset zones** (e.g. `UTC`, `Asia/Tokyo`): all fields are computed via **pure integer arithmetic** — no `time.Time` is created at render time.
+- **DST zones** (e.g. `America/New_York`, `Australia/Sydney`): `time.Time` is used only to obtain the correct UTC offset for the given instant; field rendering still uses pure arithmetic.
+
+DST detection is performed once at cache population time via monthly sampling over a 12-month window.
+
 ## Cache management
 
-`UtcNanoTs` caches loaded `*time.Location` values for performance. To reset the cache (e.g. after updating timezone data):
+`UtcNanoTs` caches loaded timezone data for performance. To reset the cache (e.g. after updating timezone data):
 
 ```go
 wantai.ClearLocationCache()

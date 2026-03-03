@@ -14,118 +14,6 @@ func TestNewGeneralDateFormat(t *testing.T) {
 	}
 }
 
-func TestGoLayout_BasicTokens(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		// Year
-		{"YYYY", "YYYY", "2006"},
-		{"YY", "YY", "06"},
-		// Month
-		{"MMMM", "MMMM", "January"},
-		{"MMM", "MMM", "Jan"},
-		{"MM", "MM", "01"},
-		{"M", "M", "1"},
-		// Day
-		{"DD", "DD", "02"},
-		{"D", "D", "2"},
-		// Day of week
-		{"dddd", "dddd", "Monday"},
-		{"ddd", "ddd", "Mon"},
-		// Hour
-		{"HH (24h)", "HH", "15"},
-		{"hh (12h)", "hh", "03"},
-		{"h (12h)", "h", "3"},
-		// Minute
-		{"mm", "mm", "04"},
-		{"ii", "ii", "04"},
-		{"II", "II", "04"},
-		// Second
-		{"ss", "ss", "05"},
-		{"SS", "SS", "05"},
-		// Fractional second
-		{"SSS (ms)", "SSS", "000"},
-		{"ffffff (us)", "ffffff", "000000"},
-		{"nnnnnnnnn (ns)", "nnnnnnnnn", "000000000"},
-		// AM/PM
-		{"A", "A", "PM"},
-		{"a", "a", "pm"},
-		// Timezone
-		{"ZZ", "ZZ", "-0700"},
-		{"Z", "Z", "MST"},
-		// Composite
-		{"YYYY-MM-DD", "YYYY-MM-DD", "2006-01-02"},
-		{"YYYY-MM-DD HH:mm:ss", "YYYY-MM-DD HH:mm:ss", "2006-01-02 15:04:05"},
-		{"YYYY/MM/DD", "YYYY/MM/DD", "2006/01/02"},
-		{"DD MMM YYYY", "DD MMM YYYY", "02 Jan 2006"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout() = %q, want %q", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestGoLayout_EscapedBlocks(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "T as literal separator",
-			input:    "YYYY-MM-DD'T'HH:mm:ss",
-			expected: "2006-01-02T15:04:05",
-		},
-		{
-			name:     "at as literal word",
-			input:    "YYYY-MM-DD 'at' HH:mm",
-			expected: "2006-01-02 at 15:04",
-		},
-		{
-			name:     "multiple escaped blocks",
-			input:    "'Year:' YYYY, 'Month:' MM",
-			expected: "Year: 2006, Month: 01",
-		},
-		{
-			name:     "escape only",
-			input:    "'hello world'",
-			expected: "hello world",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout() = %q, want %q", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestGoLayout_EmptyFormat(t *testing.T) {
-	gdf, err := NewGeneralDateFormat("")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got := gdf.GoLayout(); got != "" {
-		t.Errorf("GoLayout() = %q, want empty string", got)
-	}
-}
-
 func TestString_GeneralDateFormat(t *testing.T) {
 	format := "YYYY-MM-DD HH:mm:ss"
 	gdf, err := NewGeneralDateFormat(format)
@@ -148,224 +36,189 @@ func TestString_GeneralDateFormat_Empty(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Category 1: Token repetition / boundary tests
-// Verifies how strings.NewReplacer consumes tokens when the same character
-// is repeated, left-to-right, non-overlapping.
+// RenderWithFormat token coverage
+// Uses testTimestampNano = 2024-01-15 12:34:56.123456789 UTC (Monday)
 // ---------------------------------------------------------------------------
 
-func TestGoLayout_TokenRepetition(t *testing.T) {
+func TestRenderWithFormat_AllTokens(t *testing.T) {
 	tests := []struct {
-		input    string
+		name     string
+		format   string
 		expected string
 	}{
 		// Year
-		{"YYY", "06Y"},     // YY→06, Y→pass-through
-		{"YYYYY", "2006Y"}, // YYYY→2006, Y→pass-through
-		// Day
-		{"DDD", "022"},   // DD→02, D→2
-		{"DDDD", "0202"}, // DD→02, DD→02
-		// Minute (aliases)
-		{"mmm", "044"}, // mm→04, m→4
-		{"iii", "044"}, // ii→04, i→4
-		{"III", "044"}, // II→04, I→4
-		// Fractional second (SSS registered before SS/S)
-		{"SSSS", "0005"},     // SSS→000, S→5
-		{"SSSSS", "00005"},   // SSS→000, S→5 (only 2 chars remain, ≠ SS)
-		{"SSSSSS", "000000"}, // SSS→000, SSS→000
-		// Day-of-week
-		{"ddddd", "Mondayd"},     // dddd→Monday, d→pass-through
-		{"dddddd", "Mondaydd"},   // dddd→Monday, dd→pass-through
-		{"ddddddd", "MondayMon"}, // dddd→Monday, ddd→Mon
+		{"YYYY", "YYYY", "2024"},
+		{"YY", "YY", "24"},
 		// Month
-		{"MMMMM", "January1"},   // MMMM→January, M→1
-		{"MMMMMM", "January01"}, // MMMM→January, MM→01
+		{"MMMM", "MMMM", "January"},
+		{"MMM", "MMM", "Jan"},
+		{"MM", "MM", "01"},
+		{"M", "M", "1"},
+		// Day
+		{"DD", "DD", "15"},
+		{"D", "D", "15"},
+		// Day of week
+		{"dddd", "dddd", "Monday"},
+		{"ddd", "ddd", "Mon"},
 		// Hour
-		{"hhh", "033"}, // hh→03, h→3
-		// Second
-		{"sss", "055"}, // ss→05, s→5
+		{"HH (24h)", "HH", "12"},
+		{"hh (12h)", "hh", "12"},
+		{"h (12h)", "h", "12"},
+		// Minute aliases
+		{"mm", "mm", "34"},
+		{"ii", "ii", "34"},
+		{"II", "II", "34"},
+		{"m", "m", "34"},
+		{"i", "i", "34"},
+		{"I", "I", "34"},
+		// Second aliases
+		{"ss", "ss", "56"},
+		{"SS", "SS", "56"},
+		{"s", "s", "56"},
+		{"S", "S", "56"},
+		// AM/PM
+		{"A (PM)", "A", "PM"},
+		{"a (pm)", "a", "pm"},
 		// Timezone
-		{"ZZZ", "-0700MST"}, // ZZ→-0700, Z→MST
-		// Fractional-only tokens need exact length
-		{"ffff", "ffff"},          // 4 chars: no token defined → pass-through
-		{"fffff", "fffff"},        // 5 chars: pass-through
-		{"fffffff", "000000f"},    // ffffff→000000, f→pass-through
-		{"nnnnnnnn", "nnnnnnnn"},        // 5 chars: pass-through
-		{"nnnnnnnnnn", "000000000n"}, // nnnnnnnnn→000000000, n→pass-through
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Category 2: Token interaction / mixed types
-// Verifies correct conversion when different token types appear adjacent.
-// ---------------------------------------------------------------------------
-
-func TestGoLayout_TokenInteraction(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		// Month (M) vs Minute (m)
-		{"M:m", "1:4"},
-		{"MM:mm", "01:04"},
-		{"mM", "41"}, // reversed: m(minute)→4, M(month)→1
-		// Minute aliases mixed
-		{"m:i:I", "4:4:4"},
-		// Second + fractional
-		{"ss.SSS", "05.000"},
-		{"ss.ffffff", "05.000000"},
-		{"ss.nnnnnnnnn", "05.000000000"},
-		// AM/PM combinations
-		{"hh A", "03 PM"},
-		{"HH A", "15 PM"}, // syntactically odd but converts correctly
-		{"h a", "3 pm"},
-		// Minute alias cross
-		{"Ii", "44"}, // I→4, i→4
-		// Both hour types
-		{"HH hh", "15 03"},
-		// Year + minute (different cases)
-		{"YYYYmm", "200604"},
-		// Day + day-of-week
-		{"DDddd", "02Mon"}, // DD→02, ddd→Mon
-		// Complex interleaving
-		{"mM:Mm", "41:14"}, // m→4, M→1, :, M→1, m→4
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Category 3: Escape mechanism edge cases
-// Regex: '([^']+)' requires at least one character inside quotes.
-// ---------------------------------------------------------------------------
-
-func TestGoLayout_EscapeEdgeCases(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"escape at start", "'prefix'YYYY", "prefix2006"},
-		{"escape at end", "YYYY'suffix'", "2006suffix"},
-		{"token chars inside escape", "'MM-DD'", "MM-DD"},
-		{"all token chars escaped", "'YYYY-MM-DD HH:mm:ss'", "YYYY-MM-DD HH:mm:ss"},
-		{"adjacent escapes", "'foo''bar'", "foobar"},
-		{"interleaved tokens and escapes", "YYYY'year'MM'month'DD", "2006year01month02"},
-		{"escape with separators", "'a/b:c'", "a/b:c"},
-		{"empty quote is not escaped", "''", "''"}, // regex requires 1+ chars inside
-		{"T without quote passes through", "YYYY-MM-DDTHH:mm:ss", "2006-01-02T15:04:05"},
-		{"digits inside escape", "'2024'", "2024"},
-		{"multiple T escapes interleaved", "YYYY'T'MM'T'DD", "2006T01T02"},
+		{"ZZ", "ZZ", "+0000"},
+		{"Z", "Z", "UTC"},
+		// Fractional: individual segments
+		{"cc", "cc", "12"},
+		{"SSS", "SSS", "123"},
+		{"fff", "fff", "456"},
+		{"nnn", "nnn", "789"},
+		// Fractional: shorthands
+		{"ffffff", "ffffff", "123456"},
+		{"nnnnnnnnn", "nnnnnnnnn", "123456789"},
+		// Composite
+		{"YYYY-MM-DD", "YYYY-MM-DD", "2024-01-15"},
+		{"YYYY-MM-DD HH:mm:ss", "YYYY-MM-DD HH:mm:ss", "2024-01-15 12:34:56"},
+		{"YYYY/MM/DD", "YYYY/MM/DD", "2024/01/15"},
+		{"DD MMM YYYY", "DD MMM YYYY", "15 Jan 2024"},
+		{"SSSfff", "SSSfff", "123456"},
+		{"SSSfffnnn", "SSSfffnnn", "123456789"},
+		// Quiz-style: hide the microsecond segment
+		{"SSS'***'nnn", "SSS'***'nnn", "123***789"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
+			gdf, err := NewGeneralDateFormat(tt.format)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
+			got := testTimestampNano.RenderWithFormat("UTC", *gdf)
+			if got != tt.expected {
+				t.Errorf("RenderWithFormat(%q) = %q, want %q", tt.format, got, tt.expected)
 			}
 		})
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Category 5: Pass-through / non-token characters
-// Characters that look like tokens but are not registered.
+// Escape mechanisms
 // ---------------------------------------------------------------------------
 
-func TestGoLayout_PassThrough(t *testing.T) {
+func TestRenderWithFormat_Escapes(t *testing.T) {
 	tests := []struct {
-		input    string
+		name     string
+		format   string
 		expected string
 	}{
-		// Undefined single-char variants of longer tokens
-		{"Y", "Y"},         // only YY / YYYY are defined
-		{"d", "d"},         // only ddd / dddd are defined
-		{"f", "f"},         // only ffffff is defined
-		{"fffff", "fffff"}, // 5 chars: pass-through
-		{"n", "n"},         // only nnnnnnnnn is defined
-		{"nnnnn", "nnnnn"}, // 5 chars: pass-through
-		// Other uppercase letters
+		{"T as literal separator", "YYYY-MM-DD'T'HH:mm:ss", "2024-01-15T12:34:56"},
+		{"literal word", "YYYY-MM-DD 'at' HH:mm", "2024-01-15 at 12:34"},
+		{"adjacent escapes", "'foo''bar'", "foobar"},
+		{"interleaved", "YYYY'year'MM'month'DD", "2024year01month15"},
+		{"token chars inside escape", "'MM-DD'", "MM-DD"},
+		{"empty quote is not escaped", "''", "''"},
+		{"backslash-backslash", `YYYY\\MM`, `2024\01`},
+		{`\Y suppresses year`, `\YYYY`, `Y24Y`}, // \Y→Y, YY→24, Y→pass
+		{`\M suppresses month`, `\MM`, `M1`},    // \M→M, M→1
+		{`\' is literal quote`, `YYYY\'MM`, `2024'01`},
+		{`\' inside quote block`, `'it\'s'`, `it's`},
+		{`\n is literal n`, `HH\nmm`, `12n34`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gdf, err := NewGeneralDateFormat(tt.format)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got := testTimestampNano.RenderWithFormat("UTC", *gdf)
+			if got != tt.expected {
+				t.Errorf("RenderWithFormat(%q) = %q, want %q", tt.format, got, tt.expected)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Token interaction / pass-through
+// ---------------------------------------------------------------------------
+
+func TestRenderWithFormat_TokenInteraction(t *testing.T) {
+	tests := []struct {
+		format   string
+		expected string
+	}{
+		{"M:m", "1:34"}, // M=month, m=minute
+		{"MM:mm", "01:34"},
+		{"mM", "341"}, // m=minute(34), M=month(1)
+		{"m:i:I", "34:34:34"},
+		{"HH hh", "12 12"},
+		{"YYYYmm", "202434"}, // YYYY=2024, mm=34(minute)
+		{"DDddd", "15Mon"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			gdf, err := NewGeneralDateFormat(tt.format)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got := testTimestampNano.RenderWithFormat("UTC", *gdf)
+			if got != tt.expected {
+				t.Errorf("RenderWithFormat(%q) = %q, want %q", tt.format, got, tt.expected)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Pass-through characters
+// ---------------------------------------------------------------------------
+
+func TestRenderWithFormat_PassThrough(t *testing.T) {
+	tests := []struct {
+		format   string
+		expected string
+	}{
+		{"Y", "Y"},
+		{"d", "d"},
+		{"f", "f"},
+		{"n", "n"},
 		{"T", "T"},
-		{"WXQKLNOP", "WXQKLNOP"},
-		// Digits
-		{"0123456789", "0123456789"},
-		// Symbols
-		{"!@#$%^&*", "!@#$%^&*"},
-		// Multibyte (Japanese)
-		{"年月日", "年月日"},
-		{"年MM月DD日", "年01月02日"}, // MM and DD convert; kanji pass-through
+		{"年MM月DD日", "年01月15日"},
 	}
-
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
+		t.Run(tt.format, func(t *testing.T) {
+			gdf, err := NewGeneralDateFormat(tt.format)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
+			got := testTimestampNano.RenderWithFormat("UTC", *gdf)
+			if got != tt.expected {
+				t.Errorf("RenderWithFormat(%q) = %q, want %q", tt.format, got, tt.expected)
 			}
 		})
 	}
 }
 
 // ---------------------------------------------------------------------------
-// Centisecond token: cc
+// Centiseconds
 // ---------------------------------------------------------------------------
 
-func TestGoLayout_Centiseconds(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"cc", "00"}, // cc → centiseconds (Go layout "00")
-		{"HH:mm:ss.cc", "15:04:05.00"},
-		{"ss.cc", "05.00"},
-		// cc next to other fractional tokens
-		{"cc SSS", "00 000"},
-		// cc repeated: cc+cc = 0000
-		{"cccc", "0000"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestRender_Centiseconds(t *testing.T) {
+func TestRenderWithFormat_Centiseconds(t *testing.T) {
 	// testTimestampNano = 2024-01-15 12:34:56.123456789 UTC
 	// centiseconds = first 2 digits of fractional = "12"
 	gdf, err := NewGeneralDateFormat("HH:mm:ss.cc")
@@ -380,43 +233,28 @@ func TestRender_Centiseconds(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Backslash escape
+// 12-hour clock AM/PM cases
 // ---------------------------------------------------------------------------
 
-func TestGoLayout_BackslashEscape(t *testing.T) {
+func TestRenderWithFormat_12Hour(t *testing.T) {
+	// testTimestamp = 2024-01-15 12:34:56 UTC (noon = PM, h=12)
 	tests := []struct {
-		name     string
-		input    string
+		format   string
 		expected string
 	}{
-		// \\ → literal backslash
-		{`\\ is literal backslash`, `YYYY\\MM`, `2006\01`},
-		// \<token> → literal token character (no conversion)
-		{`\Y suppresses year token`, `\YYYY`, `Y06Y`}, // \Y→Y, YY→06, Y→pass-through
-		{`\M suppresses month token`, `\MM`, `M1`},    // \M→M, M→1
-		// \' → literal single quote (outside quote block)
-		{`\' is literal single quote`, `YYYY\'MM`, `2006'01`},
-		// \' inside a quoted block
-		{`\' inside quote block`, `'it\'s'`, `it's`},
-		// \ at end of input — trailing backslash: the backslash itself has no next char
-		// (this is an edge case: no character to consume — backslash passes through)
-		// separator characters
-		{`\n is literal n (not newline)`, `HH\nmm`, `15n04`},
-		{`\t is literal t (not tab)`, `HH\tmm`, `15t04`},
-		// backslash before non-token character
-		{`\! is literal !`, `YYYY\!MM`, `2006!01`},
-		// consecutive backslash escapes
-		{`consecutive \\`, `YYYY\\\\MM`, `2006\\01`},
+		{"hh:mm:ss A", "12:34:56 PM"},
+		{"hh:mm:ss a", "12:34:56 pm"},
+		{"h:mm A", "12:34 PM"},
 	}
-
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gdf, err := NewGeneralDateFormat(tt.input)
+		t.Run(tt.format, func(t *testing.T) {
+			gdf, err := NewGeneralDateFormat(tt.format)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got := gdf.GoLayout(); got != tt.expected {
-				t.Errorf("GoLayout(%q) = %q, want %q", tt.input, got, tt.expected)
+			got := testTimestamp.RenderWithFormat("UTC", *gdf)
+			if got != tt.expected {
+				t.Errorf("RenderWithFormat(%q) = %q, want %q", tt.format, got, tt.expected)
 			}
 		})
 	}
