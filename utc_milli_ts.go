@@ -2,46 +2,44 @@ package wantai
 
 import "time"
 
-// UtcNanoTs represents a UTC nanosecond Unix timestamp.
-// It can store the value of time.Now().UnixNano() directly.
-type UtcNanoTs int64
+// UtcMilliTs represents a UTC millisecond Unix timestamp.
+// It can store the value of time.Now().UnixMilli() directly.
+type UtcMilliTs int64
 
-// Zero is a UtcNanoTs representing the Unix epoch (1970-01-01T00:00:00Z).
-const Zero = UtcNanoTs(0)
-
-// FromTime converts a time.Time to UtcNanoTs.
-// The result is always stored as a UTC nanosecond Unix timestamp,
+// FromTimeMillis converts a time.Time to UtcMilliTs.
+// The result is always stored as a UTC millisecond Unix timestamp,
 // regardless of the timezone of the input time.Time.
-func FromTime(t time.Time) UtcNanoTs {
-	return UtcNanoTs(t.UnixNano())
+func FromTimeMillis(t time.Time) UtcMilliTs {
+	return UtcMilliTs(t.UnixMilli())
 }
 
-// ToTime converts UtcNanoTs to a time.Time in UTC.
-func (ts UtcNanoTs) ToTime() time.Time {
-	return time.Unix(0, int64(ts)).UTC()
+// ToTime converts UtcMilliTs to a time.Time in UTC.
+func (ts UtcMilliTs) ToTime() time.Time {
+	ms := int64(ts)
+	sec := ms / 1_000
+	nano := (ms % 1_000) * 1_000_000
+	if nano < 0 {
+		sec--
+		nano += 1_000_000_000
+	}
+	return time.Unix(sec, nano).UTC()
 }
 
 // String implements fmt.Stringer.
 // It returns the timestamp formatted as RFC3339 in UTC.
-func (ts UtcNanoTs) String() string {
+func (ts UtcMilliTs) String() string {
 	return ts.Render("UTC")
 }
 
 // Render returns the timestamp formatted as RFC3339 in the given timezone.
 // If the timezone name is invalid, it falls back to UTC.
-func (ts UtcNanoTs) Render(timezone string) string {
+func (ts UtcMilliTs) Render(timezone string) string {
 	entry, err := getLocEntryWithCache(timezone)
 	loc := time.UTC
 	if err == nil {
 		loc = entry.loc
 	}
-	sec := int64(ts) / 1_000_000_000
-	nano := int64(ts) % 1_000_000_000
-	if nano < 0 {
-		sec--
-		nano += 1_000_000_000
-	}
-	return time.Unix(sec, nano).In(loc).Format(time.RFC3339)
+	return ts.ToTime().In(loc).Format(time.RFC3339)
 }
 
 // RenderWithFormat returns the timestamp rendered using the given timezone and GeneralDateFormat.
@@ -51,29 +49,26 @@ func (ts UtcNanoTs) Render(timezone string) string {
 // integer arithmetic — no time.Time is created at render time.
 // For timezones with DST (e.g. America/New_York), time.Time field accessors are used
 // to obtain the correct UTC offset for the given instant.
-func (ts UtcNanoTs) RenderWithFormat(timezone string, format GeneralDateFormat) string {
+func (ts UtcMilliTs) RenderWithFormat(timezone string, format GeneralDateFormat) string {
 	entry, err := getLocEntryWithCache(timezone)
 	if err != nil {
-		// Fall back to UTC on invalid timezone.
 		entry, _ = getLocEntryWithCache("UTC")
 	}
 
-	// Split timestamp into whole seconds and sub-second nanoseconds.
-	unixSec := int64(ts) / 1_000_000_000
-	absNano := int64(ts) % 1_000_000_000
+	// Convert milliseconds to whole seconds and sub-second nanoseconds.
+	ms := int64(ts)
+	unixSec := ms / 1_000
+	absNano := (ms % 1_000) * 1_000_000
 	if absNano < 0 {
 		unixSec--
 		absNano += 1_000_000_000
 	}
 
 	if !entry.hasDST {
-		// Pure arithmetic path for fixed-offset timezones.
 		adjustedSec := unixSec + int64(entry.offsetSec)
 		return format.render(adjustedSec, absNano, entry.offsetSec, entry.tzName)
 	}
 
-	// DST path: use time.Time to get the correct offset for this instant.
-	// We do NOT call t.Format(); we only read the offset via t.Zone().
 	t := time.Unix(unixSec, absNano).In(entry.loc)
 	tzName, offsetSec := t.Zone()
 	adjustedSec := unixSec + int64(offsetSec)
