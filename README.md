@@ -13,15 +13,19 @@
 
 Choose the type that matches your storage or wire format:
 
-| Type | Underlying | Precision | Range |
+| Type | Underlying | Precision | Range (complete days) |
 |---|---|---|---|
-| `UtcNanoTs` | `int64` | Nanosecond | 1677-09-21 … 2262-04-11 |
-| `UtcMicroTs` | `int64` | Microsecond | 1677-09-21 … 2262-04-11 |
-| `UtcMilliTs` | `int64` | Millisecond | 1677-09-21 … 2262-04-11 |
-| `UtcSecTsS32` | `int32` | Second | 1901-12-13 … **2038-01-19** |
-| `UtcSecTsU32` | `uint32` | Second | 1970-01-01 … 2106-02-07 |
-| `UtcSecTsS32Ep2k` | `int32` | Second (Ep2k) | 1931-12-13 … **2068-01-19** |
-| `UtcSecTsU32Ep2k` | `uint32` | Second (Ep2k) | 2000-01-01 … 2136-02-07 |
+| `UtcNanoTs` | `int64` | Nanosecond | 1677-09-22 … 2262-04-10 |
+| `UtcMicroTs` | `int64` | Microsecond | ~290,301 BCE … ~294,241 CE |
+| `UtcMilliTs` | `int64` | Millisecond | ~292,269,000 BCE … ~292,273,000 CE |
+| `UtcSecTsS32` | `int32` | Second | 1901-12-14 … **2038-01-18** |
+| `UtcSecTsU32` | `uint32` | Second | 1970-01-01 … 2106-02-06 |
+| `UtcSecTsS32Ep2k` | `int32` | Second (Ep2k) | 1931-12-14 … **2068-01-18** |
+| `UtcSecTsU32Ep2k` | `uint32` | Second (Ep2k) | 2000-01-01 … 2136-02-06 |
+
+> Ranges are expressed as **complete-day boundaries**: the first and last UTC calendar days
+> for which the entire 24-hour period (00:00:00–23:59:59) falls within the type's integer range.
+> Partial days at the extremes are excluded.
 
 > **Ep2k** types use **2000-01-01T00:00:00Z** as epoch (instead of the Unix epoch 1970-01-01).  
 > Common in embedded / IoT systems that define their own Y2K origin.
