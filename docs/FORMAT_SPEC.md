@@ -1,8 +1,14 @@
 # GeneralDateFormat — Format String Specification
 
 `GeneralDateFormat` pre-parses a common date format string into an internal component list.
-`RenderWithFormat` walks the list and expands each component directly from the timestamp
-value — **without** calling Go's `time.Format`.
+All wantai timestamp types (`UtcNanoTs`, `UtcMicroTs`, `UtcMilliTs`, `UtcSecTsS32`, `UtcSecTsU32`,
+`UtcSecTsS32Ep2k`, `UtcSecTsU32Ep2k`) implement `RenderWithFormat`, which walks the component
+list and expands each element directly from the raw integer timestamp value — **without** calling
+Go's `time.Format`.
+
+> Sub-second tokens (`SSS`, `fff`, `nnn`, etc.) output `0` digits for types whose precision is
+> coarser than the token. For example, `UtcMilliTs` with `ffffff` yields `123000` (µs digits are
+> zero); `UtcSecTsS32` with `SSS` yields `000`.
 
 ---
 

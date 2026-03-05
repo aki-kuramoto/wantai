@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+#### New timestamp types
+- `UtcMicroTs` (`int64`): microsecond-precision UTC timestamp. Range: 1677-09-21 … 2262-04-11.
+- `UtcMilliTs` (`int64`): millisecond-precision UTC timestamp. Range: 1677-09-21 … 2262-04-11.
+- `UtcSecTsS32` (`int32`): second-precision UTC timestamp. Range: 1901-12-13 … 2038-01-19 (Year 2038 problem applies).
+- `UtcSecTsU32` (`uint32`): second-precision UTC timestamp. Range: 1970-01-01 … 2106-02-07.
+- `UtcSecTsS32Ep2k` (`int32`): second-precision UTC timestamp with **Ep2k epoch** (2000-01-01T00:00:00Z). Range: 1931-12-13 … 2068-01-19.
+- `UtcSecTsU32Ep2k` (`uint32`): second-precision UTC timestamp with **Ep2k epoch** (2000-01-01T00:00:00Z). Range: 2000-01-01 … 2136-02-07.
+- `FromTimeMicros`, `FromTimeMillis`, `FromTimeS32`, `FromTimeU32`, `FromTimeS32Ep2k`, `FromTimeU32Ep2k`: constructors from `time.Time` for each new type.
+- `epoch2kUnixSec` internal constant (`946,684,800`): Unix timestamp of the Ep2k epoch origin.
+
+#### Code structure
+- `location.go`: shared timezone infrastructure (`locEntry`, `locationCache`, `detectDST`, `getLocEntryWithCache`, `ClearLocationCache`) extracted from `utc_nano_ts.go` into its own file.
+
+#### Format tokens
 - `fff` token: microsecond sub-part (digits 4–6 of the nanosecond value).
 - `nnn` token: nanosecond sub-part (digits 7–9).
 - `SSSfff` / `SSSfffnnn` composite patterns for composing fractional-second segments.
@@ -17,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **`GeneralDateFormat`** now stores a pre-parsed `[]formatComponent` instead of a Go layout string.
-  The internal engine renders each component directly from the raw `int64` timestamp value,
+  The internal engine renders each component directly from the raw integer timestamp value,
   without calling `time.Format`.
 - **`RenderWithFormat`** no longer uses `time.Time.Format`. For fixed-offset timezones (no DST)
   all fields are computed via pure integer arithmetic (Gregorian calendar algorithm). For DST
@@ -27,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Hemisphere DST zones (e.g. `Australia/Sydney`, `Pacific/Auckland`).
 - **`locationCache`** now stores `locEntry` (containing `*time.Location`, `hasDST`, `tzName`,
   `offsetSec`) instead of a bare `*time.Location`.
+- **`utc_nano_ts.go`** slimmed down to contain only the `UtcNanoTs` type and its methods.
+  Shared timezone infrastructure has been moved to `location.go`.
 
 ### Removed
 - `(gdf *GeneralDateFormat) GoLayout() string` — replaced by the pre-parsed component list.
