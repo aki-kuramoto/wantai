@@ -77,6 +77,22 @@ All types implement `ToTime() time.Time`, which always returns a UTC value:
 t := wantai.FromTimeMillis(time.Now()).ToTime()  // time.Time in UTC
 ```
 
+`ToTimeIn(timezone)` returns the same instant read in another zone:
+
+```go
+t, err := ts.ToTimeIn("Asia/Tokyo")  // time.Time with a +09:00 location
+```
+
+Use it rather than `ts.ToTime().In(loc)` with your own `time.LoadLocation`: the
+standard library does not cache `LoadLocation`, so that costs roughly 12µs on
+**every** call, while `ToTimeIn` goes through the same zone cache as the
+renderers and settles at a few tens of nanoseconds.
+
+Unlike `Render`, an unresolvable name is reported instead of falling back to
+UTC, and the returned `time.Time` is the zero value — ignoring the error gives
+you something obviously broken rather than a plausible instant in the wrong
+zone.
+
 ### RFC 3339 rendering
 
 `String()` (implements `fmt.Stringer`) and `Render(timezone)` are available on every type:
@@ -88,7 +104,8 @@ fmt.Println(ts)                   // => "2024-01-15T12:34:56Z"    (UTC)
 fmt.Println(ts.Render("Asia/Tokyo")) // => "2024-01-15T21:34:56+09:00"
 ```
 
-An invalid timezone name silently falls back to UTC.
+See [Timezone names](#timezone-names) for what `Render` accepts — a name that
+cannot be resolved renders as UTC, with nothing in the result to say so.
 
 ### Rendering with GeneralDateFormat
 
@@ -108,6 +125,102 @@ milli := wantai.FromTimeMillis(time.Now())
 fmt.Println(milli.RenderWithFormat("Asia/Tokyo", *gdf))
 // => "2024/01/15 21:34:56.123000000"  (sub-millisecond digits are zero)
 ```
+
+### Showing an instant in someone's local time
+
+Store UTC; work out the local reading when you display it. Two ways, and the
+difference is who the zone belongs to:
+
+```go
+// The machine this process runs on. "Local" is Go's own name for that zone,
+// so no TZ environment variable and no lookup of the system's name is needed.
+fmt.Println(ts.Render("Local"))        // => "2024-01-15T21:34:56+09:00"
+
+// A zone you chose — from a config file, a user profile, a database row.
+fmt.Println(ts.Render("Asia/Tokyo"))   // => "2024-01-15T21:34:56+09:00"
+```
+
+Reach for the explicit name when the zone belongs to the **data** (a person's
+profile, a scheduled job, a record of where something happened), and for
+`"Local"` when it belongs to the **machine** (a log read on the box that wrote
+it).
+
+---
+
+## Timezone names
+
+The `timezone` argument of `Render` and `RenderWithFormat` goes to
+[`time.LoadLocation`](https://pkg.go.dev/time#LoadLocation), so it is an IANA
+name from the tz database, plus the three names Go defines itself:
+
+| Argument | Zone |
+|---|---|
+| `"Asia/Tokyo"` | that zone |
+| `""` | UTC |
+| `"UTC"` | UTC |
+| `"Local"` | the zone this process is running in |
+
+### A name is not an abbreviation and not an offset
+
+This is the sharp edge. The two things a person is most likely to write are the
+two that do not work:
+
+```go
+ts.Render("JST")      // => "2024-01-15T12:34:56Z"   UTC — nine hours off
+ts.Render("+09:00")   // => "2024-01-15T12:34:56Z"   the same
+```
+
+An unresolvable name falls back to UTC, and what you get back is a well-formed
+timestamp in the wrong zone. `Render` returns only a string, so the result
+cannot tell you: `Render("UTC")` and `Render("Nonsense/Zone")` are byte for byte
+identical.
+
+Spelling is part of the name, too. `"asia/tokyo"` resolves on macOS, whose
+filesystem does not distinguish case, and falls back to UTC on Linux — so a
+lowercase name can pass every test on a laptop and render UTC in production.
+
+### Naming the machine's own zone
+
+`"Local"` renders in the machine's zone without needing its name. When the name
+itself is wanted — to store next to an instant, to show which zone a reading
+used, or simply because a concrete name is preferred — `SystemZoneName` reports
+it:
+
+```go
+name, err := wantai.SystemZoneName()   // => "Asia/Tokyo"
+```
+
+There is no standard-library equivalent: `time.Local` knows its offset but not
+its name, and `time.Local.String()` answers `"Local"` unless `TZ` is set. So it
+reads what the platform recorded — `TZ` or `/etc/localtime` on Unix, the
+registry's `TimeZoneKeyName` translated through CLDR on Windows — and the
+answer agrees with `time.Local` on each.
+
+The cost is uneven: a few hundred nanoseconds when `TZ` is set, microseconds for
+a symlinked `/etc/localtime`, and **milliseconds** on a system where that file
+is a copy rather than a symlink (common in container images), because the whole
+zoneinfo tree then has to be read and compared. Which of those a machine is
+cannot be told from the code, so the answer is cached. Drop it with
+`ClearSystemZoneNameCache()` if the machine's zone may have changed — that is
+separate from `ClearLocationCache()` on purpose, because the two go stale for
+different reasons.
+
+An error means the zone could not be *named*, not that there is none. A caller
+that only needs to render can fall back to `"Local"`.
+
+### Check a name before it gets to a renderer
+
+Where the name comes from configuration, a user, or anywhere else it could be
+mistyped, resolve it once at startup and fail loudly:
+
+```go
+if err := wantai.TryToLoadZoneForErrorCheck(cfg.Timezone); err != nil {
+    return fmt.Errorf("timezone %q: %w", cfg.Timezone, err)
+}
+```
+
+`TryToLoadZoneForErrorCheck` reports what the renderers cannot, and leaves the zone in the cache
+so the first render does not pay for the lookup.
 
 ---
 
@@ -176,11 +289,22 @@ DST detection is performed once at cache population time via monthly sampling ov
 
 ## Cache management
 
-Timezone data is cached globally. To reset the cache (e.g. after updating the timezone database):
+Timezone data is cached globally, keyed by the name it was asked for. To reset
+the cache:
 
 ```go
 wantai.ClearLocationCache()
 ```
+
+Reset it after updating the timezone database, and whenever the zone behind a
+name changes under a running process. `"Local"` is cached like any other name,
+so a machine that changes zone — and a test that swaps `time.Local` — keeps
+rendering in the old zone until the cache is dropped.
+
+`SystemZoneName` has its own cache and its own `ClearSystemZoneNameCache()`.
+They are separate because they go stale for different reasons: a resolved zone
+goes stale when the tz database is updated, a system zone name when the machine
+is set to a different zone.
 
 ---
 

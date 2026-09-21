@@ -43,10 +43,50 @@ func getLocEntryWithCache(locationName string) (locEntry, error) {
 	return entry, nil
 }
 
+// TryToLoadZoneForErrorCheck reports whether name is a timezone the renderers can resolve, and
+// caches it if so.
+//
+// It exists because Render and RenderWithFormat cannot tell you. They return a
+// string, and an unresolvable name renders as UTC — a well-formed timestamp that
+// is simply in the wrong zone, indistinguishable from having asked for UTC on
+// purpose. The names most likely to be typed by hand are exactly the ones that
+// fail this way: "JST" and "+09:00" are not tz database names.
+//
+// So an application that takes a zone name from configuration, a user, or a
+// database row should call TryToLoadZoneForErrorCheck once where it can still complain:
+//
+//	if err := wantai.TryToLoadZoneForErrorCheck(cfg.Timezone); err != nil {
+//	    return fmt.Errorf("timezone %q: %w", cfg.Timezone, err)
+//	}
+//
+// The accepted names are the ones [time.LoadLocation] accepts: an IANA name such
+// as "Asia/Tokyo", or "", "UTC" and "Local" (see the package documentation).
+//
+// A successful call leaves the zone in the cache, so the first render does not
+// pay for the lookup.
+func TryToLoadZoneForErrorCheck(name string) error {
+	_, err := getLocEntryWithCache(name)
+	return err
+}
+
 // ClearLocationCache clears all cached timezone locations.
-// Call this after updating the timezone database, or in tests that require a fresh cache.
+//
+// Call it after updating the timezone database, and whenever the zone behind a
+// name changes under a running process. The name "Local" is cached like any
+// other, so a machine that changes zone — and a test that swaps [time.Local] —
+// keeps rendering in the old one until the cache is dropped.
 func ClearLocationCache() {
-	locationCache = sync.Map{}
+	// Delete the entries rather than replacing the map. Assigning a fresh
+	// sync.Map to the package variable is a write to that variable, and a
+	// renderer running on another goroutine is reading it at the same time —
+	// a data race that -race reports and that go vet does not catch (a new
+	// composite literal is not a copied lock, so copylocks stays quiet).
+	// Range/Delete touches only the map's own synchronised state.
+	// interface{} rather than any: go.mod declares go 1.17.
+	locationCache.Range(func(k, _ interface{}) bool {
+		locationCache.Delete(k)
+		return true
+	})
 }
 
 // detectDST reports whether loc observes Daylight Saving Time.
