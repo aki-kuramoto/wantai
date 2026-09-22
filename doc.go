@@ -54,6 +54,20 @@
 // reports it. The standard library has no equivalent: time.Local knows its
 // offset but not its name.
 //
+// # Windows carries its own copy of the database
+//
+// Windows has no system timezone database. Go's time package reads the current
+// zone from system calls there and has no file source for [time.LoadLocation],
+// so an IANA name resolves only from an embedded copy — without one, every name
+// falls back to UTC, and [SystemZoneName] would hand back a name that Render
+// then refuses.
+//
+// So on Windows this package embeds the database (the standard library's
+// time/tzdata), at a cost of about 400KB. A program that renders only in "UTC"
+// and "Local" needs none of it — [time.LoadLocation] answers both without
+// touching the database — and can build with -tags wantai_no_tzdata_on_windows
+// to leave it out. The tag does nothing on any other platform.
+//
 // # Caching
 //
 // A resolved zone is cached under the name it was asked for, so repeated

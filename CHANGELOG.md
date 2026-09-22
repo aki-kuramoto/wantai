@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Timezone database on Windows
+- On Windows the package now embeds the timezone database (`time/tzdata`), because Windows has no
+  system one: Go reads the current zone from system calls there and has no file source for
+  `time.LoadLocation`, so without an embedded copy every IANA name falls back to UTC — and
+  `SystemZoneName` would return a name `Render` then refuses. Costs about 400KB on Windows and
+  nothing elsewhere. Opt out with `-tags wantai_no_tzdata_on_windows` if the program renders only in
+  `"UTC"` and `"Local"`, which need no database.
+
 #### Naming the machine's own timezone
 - `SystemZoneName() (string, error)`: the IANA name of the zone the machine is set to. The standard
   library has no equivalent — `time.Local` knows its offset but not its name, and

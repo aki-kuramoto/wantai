@@ -222,6 +222,32 @@ if err := wantai.TryToLoadZoneForErrorCheck(cfg.Timezone); err != nil {
 `TryToLoadZoneForErrorCheck` reports what the renderers cannot, and leaves the zone in the cache
 so the first render does not pay for the lookup.
 
+### The timezone database on Windows
+
+Windows has no system timezone database. Go reads the current zone from system
+calls there and has no file source for `time.LoadLocation`, so an IANA name
+resolves only from an embedded copy. Without one every name falls back to UTC,
+and `SystemZoneName` would hand you a name that `Render` then refuses.
+
+So on Windows this package embeds the database (the standard library's
+`time/tzdata`). It costs about **400KB** of binary size, and nothing on any
+other platform — the file carrying it is compiled only for Windows.
+
+A program that renders only in `"UTC"` and `"Local"` needs none of it, since
+`time.LoadLocation` answers both without touching the database. Leave it out
+with:
+
+```sh
+go build -tags wantai_no_tzdata_on_windows
+```
+
+The tag does nothing on any other platform. An unknown build tag is silently
+ignored by Go, so a misspelling leaves the data in — a binary larger than
+intended rather than one that reports the wrong time.
+
+Building with the standard library's own `-tags timetzdata` embeds the same
+data regardless of this tag.
+
 ---
 
 ## GeneralDateFormat tokens
