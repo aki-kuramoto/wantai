@@ -8,10 +8,22 @@ on:
 
 jobs:
   test:
-    name: Test (Go ${{ matrix.go-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, Go ${{ matrix.go-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      # One failing combination should not cancel the others: when a platform
+      # disagrees, the useful question is which ones.
+      fail-fast: false
       matrix:
+        # Windows earns its place here: SystemZoneName reads the zone from the
+        # registry and translates it through CLDR, and that file is compiled on
+        # no other platform.
+        #
+        # What it cannot tell us: the runner has Go installed, so zones resolve
+        # from $GOROOT/lib/time/zoneinfo.zip whether or not tzdata_windows.go
+        # embedded a copy. A green Windows job says the registry path works, not
+        # that a shipped binary finds its zones.
+        os: [ubuntu-latest, windows-latest]
         go-version: ["1.22", "1.23", "stable"]
 
     steps:
