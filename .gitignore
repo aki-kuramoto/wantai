@@ -15,6 +15,7 @@ go.work.sum
 
 # Internal project management (not part of the public library)
 project-status.md
+.local/
 
 # OS metadata
 .DS_Store

@@ -72,7 +72,7 @@ func (ts UtcMicroTs) Render(timezone string) string {
 
 // RenderWithFormat returns the timestamp rendered using the given timezone and GeneralDateFormat.
 //
-// timezone follows the same rules as [Render]'s: an IANA name, or "", "UTC" or
+// timezone follows the same rules as Render's: an IANA name, or "", "UTC" or
 // "Local"; an unresolvable one renders as UTC without saying so. See the package
 // documentation, and [TryToLoadZoneForErrorCheck] for checking a name before it
 // gets here.
